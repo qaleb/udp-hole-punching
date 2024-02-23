@@ -1,67 +1,64 @@
-#!/usr/bin/env python3
-"""UDP hole punching client."""
+##############################################################################
+#################################  VERSION 1  ################################
+##############################################################################
+
 from twisted.internet.protocol import DatagramProtocol
-from twisted.internet import reactor
+from twisted.internet import reactor, threads
 
 import sys
-
+import threading
 
 class ClientProtocol(DatagramProtocol):
-    """
-    Client protocol implementation.
-
-    The clients register with the rendezvous server.
-    The rendezvous server returns connection details for the other peer.
-    The client initializes a connection with the other peer and sends a
-    message.
-    """
-
-    def startProtocol(self):
-        """Register with the rendezvous server."""
+    def __init__(self):
         self.server_connect = False
         self.peer_init = False
         self.peer_connect = False
         self.peer_address = None
+        self.print_lock = threading.Lock()
+
+    def startProtocol(self):
+        with self.print_lock:
+            print('Connected to the server, waiting for peer...')
         self.transport.write(b'0', (sys.argv[1], int(sys.argv[2])))
 
     def toAddress(self, data):
-        """Return an IPv4 address tuple."""
         ip, port = data.decode('utf-8').split(':')
-        return (ip, int(port))
+        return ip, int(port)
 
     def datagramReceived(self, datagram, host):
-        """Handle incoming datagram messages."""
         if not self.server_connect:
             self.server_connect = True
-            self.transport.write(b'ok', (sys.argv[1], int(sys.argv[2])))
-            print('Connected to the server, waiting for peer...')
-
+            with self.print_lock:
+                print('Connected to the server, waiting for peer...')
         elif not self.peer_init:
             self.peer_init = True
             self.peer_address = self.toAddress(datagram)
             self.transport.write(b'init', self.peer_address)
-            print('Sent init to %s:%d' % self.peer_address)
-
+            with self.print_lock:
+                print(f'Sent init to {self.peer_address[0]}:{self.peer_address[1]}')
         elif not self.peer_connect:
             self.peer_connect = True
             host = self.transport.getHost().host
             port = self.transport.getHost().port
-            msg = 'Message from %s:%d' % (host, port)
+            msg = f'Message from {host}:{port}'
             self.transport.write(msg.encode('utf-8'), self.peer_address)
-
+            with self.print_lock:
+                print(f'Received: {msg}')
+                print("Enter a message (type 'exit' to quit):")
         else:
             self.handleMessage(datagram)
 
     def handleMessage(self, datagram):
-        """Handle incoming messages."""
-        print('Received:', datagram.decode('utf-8'))
+        with self.print_lock:
+            print('Received:', datagram.decode('utf-8'))
 
     def sendMessage(self, message):
-        """Send a message to the other peer."""
-        if self.peer_connect:
+        if self.peer_connect and self.transport:
             self.transport.write(message.encode('utf-8'), self.peer_address)
         else:
-            print('Peer not connected yet. Cannot send message.')
+            with self.print_lock:
+                print('Peer not connected yet or the transport is not available. Cannot send message.')
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -70,10 +67,13 @@ if __name__ == '__main__':
 
     protocol = ClientProtocol()
     t = reactor.listenUDP(0, protocol)
-    reactor.run()
 
-    while True:
-        message = input("Enter a message (type 'exit' to quit): ")
-        if message.lower() == 'exit':
-            break
-        protocol.sendMessage(message)
+    def message_sending_loop():
+        while True:
+            message = input()
+            if message.lower() == 'exit':
+                break
+            protocol.sendMessage(message)
+
+    reactor.callInThread(message_sending_loop)
+    reactor.run()
