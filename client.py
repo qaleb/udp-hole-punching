@@ -50,7 +50,18 @@ class ClientProtocol(DatagramProtocol):
             self.transport.write(msg.encode('utf-8'), self.peer_address)
 
         else:
-            print('Received:', datagram.decode('utf-8'))
+            self.handleMessage(datagram)
+
+    def handleMessage(self, datagram):
+        """Handle incoming messages."""
+        print('Received:', datagram.decode('utf-8'))
+
+    def sendMessage(self, message):
+        """Send a message to the other peer."""
+        if self.peer_connect:
+            self.transport.write(message.encode('utf-8'), self.peer_address)
+        else:
+            print('Peer not connected yet. Cannot send message.')
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -60,3 +71,9 @@ if __name__ == '__main__':
     protocol = ClientProtocol()
     t = reactor.listenUDP(0, protocol)
     reactor.run()
+
+    while True:
+        message = input("Enter a message (type 'exit' to quit): ")
+        if message.lower() == 'exit':
+            break
+        protocol.sendMessage(message)

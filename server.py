@@ -26,12 +26,14 @@ class ServerProtocol(DatagramProtocol):
     def addressString(self, address):
         """Return a string representation of an address."""
         ip, port = address
-        return ':'.join([ip.decode('utf-8'), str(port)])
+        if isinstance(ip, bytes):
+            ip = ip.decode('utf-8')
+        return f'{ip}:{port}'
 
     def datagramReceived(self, datagram, address):
         """Handle incoming datagram messages."""
         if datagram == b'0':
-            print(f'Registration from {address[0].decode("utf-8")}:{address[1]}')
+            print(f'Registration from {address[0]}:{address[1]}')
             self.transport.write(b'ok', address)
             self.addresses.append(address)
 
