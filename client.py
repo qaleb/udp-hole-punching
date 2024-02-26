@@ -19,7 +19,7 @@ class ClientProtocol(DatagramProtocol):
 
     def startProtocol(self):
         with self.print_lock:
-            print('Connected to the server, waiting for peer...')
+            print('Connecting to the server...')
         self.transport.write(b'0', (sys.argv[1], int(sys.argv[2])))
 
     def toAddress(self, data):
@@ -46,7 +46,7 @@ class ClientProtocol(DatagramProtocol):
             self.transport.write(msg.encode('utf-8'), self.peer_address)
             with self.print_lock:
                 print(f'Relaying through {self.relay_address[0]}:{self.relay_address[1]}')
-                print(f'Received: {msg}')
+                # print(f'Received: {msg}')
                 print("Enter a message (type 'exit' to quit):")
         else:
             self.handleMessage(datagram)
@@ -54,6 +54,8 @@ class ClientProtocol(DatagramProtocol):
     def handleMessage(self, datagram):
         with self.print_lock:
             print('Received:', datagram.decode('utf-8'))
+            if datagram.lower() == b'peer has exited the conversation. conversation closed.':
+                reactor.stop()
 
     def sendMessage(self, message):
         if self.peer_connect and self.transport:
@@ -74,9 +76,11 @@ if __name__ == '__main__':
     def message_sending_loop():
         while True:
             message = input()
-            if message.lower() == 'exit':
-                break
             protocol.sendMessage(message)
+            if message.lower() == 'exit':
+                reactor.callFromThread(reactor.stop)  
+                # reactor.stop()  # Stop the reactor and exit the program
+                break
 
     reactor.callInThread(message_sending_loop)
     reactor.run()

@@ -6,7 +6,6 @@ from twisted.internet import reactor
 
 import sys
 
-
 class ServerProtocol(DatagramProtocol):
     def __init__(self):
         self.addresses = {}
@@ -16,6 +15,16 @@ class ServerProtocol(DatagramProtocol):
         if isinstance(ip, bytes):
             ip = ip.decode('utf-8')
         return f'{ip}:{port}'
+
+    def notifyPeerExit(self, address):
+        if address in self.addresses and self.addresses[address] is not None:
+            peer_address = self.addresses[address]
+            exit_message = b'Peer has exited the conversation. Conversation closed.'
+            self.transport.write(exit_message, peer_address)
+            print(f'Notified {peer_address[0]}:{peer_address[1]} about peer exit.')
+            # Optionally, remove entries related to the exiting peer
+            del self.addresses[address]
+            del self.addresses[peer_address]
 
     def datagramReceived(self, datagram, address):
         if datagram == b'0':
@@ -40,6 +49,10 @@ class ServerProtocol(DatagramProtocol):
             peer_address = self.addresses[address]
             self.transport.write(datagram, peer_address)
             print(f'Relayed message from {address[0]}:{address[1]} to {peer_address[0]}:{peer_address[1]}')
+
+            # Check if the received message indicates peer exit
+            if datagram.lower() == b'exit':
+                self.notifyPeerExit(address)
 
 
 if __name__ == '__main__':
