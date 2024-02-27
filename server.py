@@ -39,6 +39,9 @@ class ServerProtocol(DatagramProtocol):
 
                 self.transport.write(msg_0.encode('utf-8'), peer1)
                 self.transport.write(msg_1.encode('utf-8'), peer2)
+                init_message = b'You can now start texting.'
+                self.transport.write(init_message, peer1)
+                self.transport.write(init_message, peer2)
 
                 self.addresses[peer1] = peer2
                 self.addresses[peer2] = peer1
